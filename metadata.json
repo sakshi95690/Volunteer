@@ -1,0 +1,6 @@
+{
+  "name": "Seva Connect",
+  "description": "Volunteer registration and management portal with festival administration, HOD approvals, ID card generation, and real-time status tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

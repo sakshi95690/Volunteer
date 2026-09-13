@@ -1,0 +1,239 @@
+@import "tailwindcss";
+
+:root {
+  /* Authentic ISKCON Temple Vedic Palette (From Claude Artifact) */
+  --primary: #14415C;
+  --primary-dark: #0D2C3E;
+  --primary-light: #E5EDF5;
+  --gold: #C6961F;
+  --gold-light: #FBF3E0;
+  --gold-dark: #996F0E;
+  --maroon: #8C2424;
+  --green: #1E7B4D;
+  --amber: #C9770E;
+  --bg: #F7F3E8;
+  --surface: #FFFFFF;
+  --ink: #241E15;
+  --sand: #FBF7EC;
+  --sand-dark: #F0E9D5;
+  --border: #E8E0CE;
+  --border-light: #EEE7D5;
+  --saffron: #C6961F;
+  --saffron-light: #FBF3E0;
+  --earth-dark: #241E15;
+  --font-display: 'Cinzel', Georgia, serif;
+  --font-body: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+
+  font-family: var(--font-body);
+  color: var(--ink);
+  background-color: var(--bg);
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  width: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Base application container with fixed max-width for phone/tablet/desktop harmony */
+.app-container {
+  min-height: 100vh;
+  background-color: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.app-wrapper {
+  width: 100%;
+  max-width: 540px;
+  margin: 0 auto;
+  padding: 10px 12px calc(84px + env(safe-area-inset-bottom, 16px));
+  box-sizing: border-box;
+  transition: max-width 0.2s ease;
+}
+
+@media (min-width: 640px) {
+  .app-wrapper {
+    padding: 20px 16px 40px;
+  }
+}
+
+/* Wide layout modifier for Admin & HOD dashboard on tablets & desktop */
+.app-wrapper.app-wrapper-wide {
+  max-width: 540px;
+}
+
+@media (min-width: 768px) {
+  .app-wrapper.app-wrapper-wide {
+    max-width: 760px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-wrapper.app-wrapper-wide {
+    max-width: 1080px;
+  }
+}
+
+/* Mobile Bottom Navigation Bar */
+.mobile-bottom-nav {
+  display: flex;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: rgba(251, 247, 236, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid #E2D9C3;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 10px));
+  box-shadow: 0 -4px 20px rgba(20, 65, 92, 0.08);
+}
+
+@media (min-width: 640px) {
+  .mobile-bottom-nav {
+    display: none !important;
+  }
+}
+
+/* Top Desktop Navigation (hidden on mobile) */
+.desktop-top-nav {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .desktop-top-nav {
+    display: grid !important;
+  }
+}
+
+/* Responsive Card Box */
+.card-box {
+  background: #FFFFFF;
+  border: 1px solid #E8E0CE;
+  border-radius: 14px;
+  padding: 14px 12px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 10px rgba(20, 65, 92, 0.04);
+  box-sizing: border-box;
+  width: 100%;
+}
+
+@media (min-width: 480px) {
+  .card-box {
+    padding: 18px 20px;
+    margin-bottom: 16px;
+    border-radius: 16px;
+  }
+}
+
+/* Mobile Sheet Drag Handle */
+.sheet-drag-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: #D5CCA8;
+  margin: 0 auto 12px;
+}
+
+@media (min-width: 640px) {
+  .sheet-drag-handle {
+    display: none;
+  }
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Prevent unwanted iOS Safari zoom on input focus */
+@media screen and (max-width: 767px) {
+  input[type="text"],
+  input[type="password"],
+  input[type="email"],
+  input[type="number"],
+  input[type="tel"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Badge styling */
+.badge {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.badge-approved {
+  background: #DCEBE1;
+  color: #1E7B4D;
+}
+
+.badge-pending {
+  background: #FBF3E0;
+  color: #A06B08;
+}
+
+.badge-rejected {
+  background: #F6DEE1;
+  color: #8C2424;
+}
+
+.badge-printing {
+  background: #E5EDF5;
+  color: #14415C;
+}
+
+.badge-draft {
+  background: #EAE5D7;
+  color: #6B6255;
+}
+
+/* Rich text editor and rendered output styling */
+.rte-content {
+  outline: none;
+}
+.rte-content:empty:before {
+  content: attr(data-placeholder);
+  color: #8A8375;
+  pointer-events: none;
+}
+.rte-content b,
+.rte-content strong {
+  font-weight: 700;
+}
+.rte-content i,
+.rte-content em {
+  font-style: italic;
+}
+.rte-content p {
+  margin: 0 0 0.5em 0;
+}
+.rte-content ul,
+.rte-content ol {
+  padding-left: 1.25rem;
+  margin: 0.5em 0;
+}
