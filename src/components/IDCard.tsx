@@ -116,13 +116,83 @@ export async function generateCardPng(record: Partial<Volunteer>, festival?: Fes
     showTimeSlot: true,
   };
 
-  const W = 720,
-    H = 1040;
+  const deptId = record.departmentId || record.department;
+  const dept = festival ? festival.departments?.find((d) => d.id === deptId) : null;
+  const vNum = record.volunteerNumber || record.volunteerId;
+  const idLabel = vNum ? formatId(festival?.code, vNum) : "ID pending approval";
+  const photoSrc = record.photoUrl || record.photo;
+
+  // ---- Build the exact same field list / grid rows that the on-screen
+  // IDCard preview produces (mirrors its CSS grid auto-placement) ----
+  type RowItem = { label: string; value: string; emoji?: string };
+  const fieldItems: RowItem[] = [];
+  if (cardConfig.showDepartment) {
+    fieldItems.push({
+      label: "Department",
+      value: dept ? dept.name : "—",
+      emoji: dept && !dept.logoUrl ? dept.emoji : undefined,
+    });
+  }
+  if (cardConfig.showContact) {
+    fieldItems.push({ label: "Contact", value: record.contact || "—" });
+  }
+  if (cardConfig.showHOD) {
+    fieldItems.push({ label: "HOD Name", value: dept && dept.hodName ? dept.hodName : "—" });
+  }
+  const fullItem: RowItem | null = cardConfig.showTimeSlot
+    ? { label: "Time Slot", value: record.timeSlot || "—" }
+    : null;
+
+  type Row = { cells: (RowItem | null)[]; full: boolean; item?: RowItem };
+  const rows: Row[] = [];
+  let pending: (RowItem | null)[] | null = null;
+  let col = 0;
+  for (const it of fieldItems) {
+    if (!pending) pending = [null, null];
+    pending[col] = it;
+    col += 1;
+    if (col === 2) {
+      rows.push({ cells: pending, full: false });
+      pending = null;
+      col = 0;
+    }
+  }
+  if (pending) {
+    rows.push({ cells: pending, full: false });
+  }
+  if (fullItem) {
+    rows.push({ cells: [fullItem, fullItem], full: true, item: fullItem });
+  }
+
+  // ---- Layout constants: identical px values to the IDCard preview JSX
+  // (maxWidth 320, 16px paddings, 72px photo, etc.) scaled up for a crisp PNG ----
+  const SCALE = 3;
+  const CARD_W = 320;
+  const RADIUS = 16;
+  const HEADER_PAD_TOP = 16,
+    HEADER_PAD_X = 16,
+    HEADER_PAD_BOTTOM = 12;
+  const BODY_PAD_X = 16,
+    BODY_PAD_TOP = 16,
+    BODY_PAD_BOTTOM = 18;
+  const PHOTO_SIZE = 72;
+  const ROW_H = 32;
+  const ROW_GAP = 8;
+  const HEADER_ROW1_H = 24;
+  const FESTIVAL_NAME_H = 17;
+  const SUBTITLE_H = 12;
+
+  const headerH = HEADER_PAD_TOP + HEADER_ROW1_H + 4 + FESTIVAL_NAME_H + 2 + SUBTITLE_H + HEADER_PAD_BOTTOM;
+  const gridH = rows.length ? rows.length * ROW_H + (rows.length - 1) * ROW_GAP : 0;
+  const bodyH = BODY_PAD_TOP + PHOTO_SIZE + (gridH ? 14 + gridH : 0) + BODY_PAD_BOTTOM;
+  const CARD_H = headerH + bodyH;
+
   const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = H;
+  canvas.width = CARD_W * SCALE;
+  canvas.height = CARD_H * SCALE;
   const ctx = canvas.getContext("2d");
   if (!ctx) return "";
+  ctx.scale(SCALE, SCALE);
 
   if (typeof document !== "undefined" && (document as any).fonts && (document as any).fonts.ready) {
     try {
@@ -130,184 +200,158 @@ export async function generateCardPng(record: Partial<Volunteer>, festival?: Fes
     } catch {}
   }
 
-  // outer rounded frame
-  roundRectPath(ctx, 0, 0, W, H, 40);
+  const FONT = "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif";
+
+  function drawDetail(item: RowItem, x: number, y: number, maxWidth: number) {
+    if (!ctx) return;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillStyle = "#9A927E";
+    ctx.font = `700 10.5px ${FONT}`;
+    ctx.fillText(item.label.toUpperCase(), x, y);
+    ctx.fillStyle = "#241E15";
+    ctx.font = `600 13.5px ${FONT}`;
+    const prefix = item.emoji ? `${item.emoji} ` : "";
+    ctx.fillText(truncateToWidth(ctx, prefix + item.value, maxWidth), x, y + 14);
+  }
+
+  // ---- outer rounded white card ----
+  roundRectPath(ctx, 0, 0, CARD_W, CARD_H, RADIUS);
   ctx.save();
   ctx.clip();
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, CARD_W, CARD_H);
 
-  ctx.fillStyle = "#FBF7EC";
-  ctx.fillRect(0, 0, W, H);
-
-  const headerH = 300;
-  const grad = ctx.createLinearGradient(0, 0, W, headerH);
+  // ---- header gradient (matches: linear-gradient(135deg, primary, accent)) ----
+  const grad = ctx.createLinearGradient(0, 0, CARD_W, headerH);
   grad.addColorStop(0, cardConfig.primaryColor);
-  grad.addColorStop(1, "#0D2E42");
+  grad.addColorStop(1, cardConfig.accentColor);
   ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, headerH);
-  ctx.restore();
+  ctx.fillRect(0, 0, CARD_W, headerH);
 
-  // festival icon top-right
-  const iconSize = 56;
-  const iconX = W - 40 - iconSize,
-    iconY = 36;
+  let hy = HEADER_PAD_TOP;
+  ctx.textBaseline = "top";
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.font = `700 11px ${FONT}`;
+  ctx.fillText("ISKCON SEVA", HEADER_PAD_X, hy + 5);
+
+  const logoSize = 24;
+  const logoX = CARD_W - HEADER_PAD_X - logoSize;
   const logoImg = festival?.logoImageUrl ? await loadImageSafe(festival.logoImageUrl) : null;
   if (logoImg) {
     ctx.save();
-    roundRectPath(ctx, iconX, iconY, iconSize, iconSize, 14);
+    roundRectPath(ctx, logoX, hy, logoSize, logoSize, 6);
     ctx.clip();
-    drawImageCover(ctx, logoImg, iconX, iconY, iconSize, iconSize);
+    drawImageCover(ctx, logoImg, logoX, hy, logoSize, logoSize);
     ctx.restore();
+    ctx.strokeStyle = "rgba(255,255,255,0.6)";
+    ctx.lineWidth = 1;
+    roundRectPath(ctx, logoX, hy, logoSize, logoSize, 6);
+    ctx.stroke();
   } else {
-    ctx.font = "44px serif";
+    ctx.font = "18px serif";
     ctx.textAlign = "right";
-    ctx.textBaseline = "top";
-    ctx.fillText(festival ? festival.emoji : "🙏", W - 40, iconY - 6);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillText(festival ? festival.emoji : "🙏", CARD_W - HEADER_PAD_X, hy + 2);
   }
 
-  ctx.strokeStyle = "rgba(232,197,98,0.55)";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(60, 132);
-  ctx.lineTo(W - 60, 132);
-  ctx.stroke();
-
-  ctx.fillStyle = "#F3E0AC";
+  hy += HEADER_ROW1_H + 4;
   ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
-  ctx.font = "600 34px 'Cinzel', serif";
-  const festLine = festival ? `${festival.name} ${festival.dateLabel}` : "Volunteer";
-  ctx.fillText(truncateToWidth(ctx, festLine, W - 100), W / 2, 210);
+  ctx.fillStyle = "#FFFFFF";
+  ctx.font = `800 14px ${FONT}`;
+  const festName = (festival ? festival.name : "Volunteer").toUpperCase();
+  ctx.fillText(truncateToWidth(ctx, festName, CARD_W - HEADER_PAD_X * 2), CARD_W / 2, hy);
 
-  // photo
-  const photoSize = 180;
-  const photoX = 60,
-    photoY = headerH + 60;
-  roundRectPath(ctx, photoX, photoY, photoSize, photoSize, 28);
-  ctx.fillStyle = "#EFE7D2";
+  hy += FESTIVAL_NAME_H + 2;
+  ctx.font = `500 10px ${FONT}`;
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  const subtitle = `Festival Volunteer ${festival ? festival.dateLabel : ""}`.trim();
+  ctx.fillText(truncateToWidth(ctx, subtitle, CARD_W - HEADER_PAD_X * 2), CARD_W / 2, hy);
+
+  // ---- body: photo + name/id/status ----
+  const photoX = BODY_PAD_X;
+  const photoY = headerH + BODY_PAD_TOP;
+
+  roundRectPath(ctx, photoX, photoY, PHOTO_SIZE, PHOTO_SIZE, 10);
+  ctx.fillStyle = "#F1F5F9";
   ctx.fill();
   ctx.save();
-  roundRectPath(ctx, photoX, photoY, photoSize, photoSize, 28);
+  roundRectPath(ctx, photoX, photoY, PHOTO_SIZE, PHOTO_SIZE, 10);
   ctx.clip();
-  const photoSrc = record.photoUrl || record.photo;
   const photoImg = photoSrc ? await loadImageSafe(photoSrc) : null;
   if (photoImg) {
-    drawImageCover(ctx, photoImg, photoX, photoY, photoSize, photoSize);
+    drawImageCover(ctx, photoImg, photoX, photoY, PHOTO_SIZE, PHOTO_SIZE);
   } else {
-    ctx.fillStyle = "#F5EFE0";
-    ctx.fillRect(photoX, photoY, photoSize, photoSize);
-    
-    // Crisp decorative devotee avatar fallback
-    ctx.fillStyle = cardConfig.primaryColor;
-    ctx.beginPath();
-    ctx.arc(photoX + photoSize / 2, photoY + photoSize * 0.4, photoSize * 0.22, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(photoX + photoSize / 2, photoY + photoSize * 0.96, photoSize * 0.42, Math.PI, Math.PI * 2);
-    ctx.fill();
-
-    const initials = (record.fullName || "V")
-      .trim()
-      .split(/\s+/)
-      .map((w) => w[0])
-      .slice(0, 2)
-      .join("")
-      .toUpperCase();
-    ctx.fillStyle = "#FFFFFF";
-    ctx.font = "bold 20px Inter, Arial, sans-serif";
+    ctx.font = "28px serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(initials, photoX + photoSize / 2, photoY + photoSize * 0.4);
+    ctx.fillStyle = "#1C2B3A";
+    ctx.fillText("🙏", photoX + PHOTO_SIZE / 2, photoY + PHOTO_SIZE / 2 + 2);
   }
   ctx.restore();
-  ctx.strokeStyle = cardConfig.accentColor;
-  ctx.lineWidth = 4;
-  roundRectPath(ctx, photoX, photoY, photoSize, photoSize, 28);
+  ctx.strokeStyle = "#E2E8F0";
+  ctx.lineWidth = 2;
+  roundRectPath(ctx, photoX, photoY, PHOTO_SIZE, PHOTO_SIZE, 10);
   ctx.stroke();
 
-  // name / id / status
-  const textX = photoX + photoSize + 36;
-  const textMaxW = W - textX - 40;
+  const textX = photoX + PHOTO_SIZE + 12;
+  const textMaxW = CARD_W - BODY_PAD_X - textX;
   ctx.textAlign = "left";
-  ctx.fillStyle = "#1C2B3A";
-  ctx.font = "600 38px 'Cinzel', serif";
-  ctx.fillText(truncateToWidth(ctx, record.fullName || "—", textMaxW), textX, photoY + 46);
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "#4A3728";
+  ctx.font = `700 15px ${FONT}`;
+  ctx.fillText(truncateToWidth(ctx, record.fullName || "—", textMaxW), textX, photoY + 2);
 
-  ctx.fillStyle = cardConfig.primaryColor;
-  ctx.font = "bold 24px Inter, Arial, sans-serif";
-  const vNum = record.volunteerNumber || record.volunteerId;
-  const idLabel = vNum ? formatId(festival?.code, vNum) : "ID pending approval";
-  ctx.fillText(truncateToWidth(ctx, idLabel, textMaxW), textX, photoY + 84);
+  const idY = photoY + 2 + 19;
+  ctx.font = `11.5px monospace`;
+  const idPadX = 6;
+  const idW = Math.min(textMaxW, ctx.measureText(idLabel).width + idPadX * 2);
+  ctx.fillStyle = "#F1F5F9";
+  roundRectPath(ctx, textX, idY, idW, 18, 4);
+  ctx.fill();
+  ctx.fillStyle = "#475569";
+  ctx.fillText(truncateToWidth(ctx, idLabel, idW - idPadX * 2), textX + idPadX, idY + 3);
 
+  const badgeY = idY + 18 + 6;
   const statusStyle = STATUS_STYLE[record.status || "Draft"] || STATUS_STYLE.Draft;
   const badgeText = record.status || "Draft";
-  ctx.font = "bold 20px Inter, Arial, sans-serif";
-  const badgeW = Math.min(textMaxW, ctx.measureText(badgeText).width + 40);
-  const badgeH = 42;
-  const badgeY = photoY + 106;
+  ctx.font = `700 11px ${FONT}`;
+  const badgeW = Math.min(textMaxW, ctx.measureText(badgeText).width + 18);
+  const badgeH = 18;
   ctx.fillStyle = statusStyle.bg;
   roundRectPath(ctx, textX, badgeY, badgeW, badgeH, badgeH / 2);
   ctx.fill();
   ctx.fillStyle = statusStyle.fg;
   ctx.textBaseline = "middle";
-  ctx.fillText(truncateToWidth(ctx, badgeText, badgeW - 30), textX + 18, badgeY + badgeH / 2 + 1);
-  ctx.textBaseline = "alphabetic";
+  ctx.fillText(truncateToWidth(ctx, badgeText, badgeW - 18), textX + 9, badgeY + badgeH / 2 + 1);
+  ctx.textBaseline = "top";
 
-  // detail grid
-  const deptId = record.departmentId || record.department;
-  const dept = festival ? festival.departments?.find((d) => d.id === deptId) : null;
-  const gridY = photoY + photoSize + 64;
-  const colW = (W - 160) / 2;
-
-  function detailBlock(label: string, value: string, x: number, y: number, maxWidth: number) {
-    if (!ctx) return;
-    ctx.textAlign = "left";
-    ctx.fillStyle = "#9A927E";
-    ctx.font = "bold 15px Inter, Arial, sans-serif";
-    ctx.fillText(label.toUpperCase(), x, y);
-    ctx.fillStyle = "#1C2B3A";
-    ctx.font = "600 21px Inter, Arial, sans-serif";
-    ctx.fillText(truncateToWidth(ctx, value, maxWidth), x, y + 30);
-  }
-
-  const rows: Array<{ label: string; value: string; full: boolean }> = [];
-  if (cardConfig.showDepartment) {
-    rows.push({
-      label: "Department",
-      value: dept ? `${dept.emoji} ${dept.name}` : "—",
-      full: false,
-    });
-  }
-  if (cardConfig.showContact) {
-    rows.push({ label: "Contact", value: record.contact || "—", full: false });
-  }
-  if (cardConfig.showHOD) {
-    rows.push({ label: "HOD Name", value: dept && dept.hodName ? dept.hodName : "—", full: false });
-  }
-  if (cardConfig.showTimeSlot) {
-    rows.push({ label: "Time Slot", value: record.timeSlot || "—", full: true });
-  }
-
-  let cursorY = gridY;
-  let colIndex = 0;
-  for (const row of rows) {
-    if (row.full) {
-      if (colIndex === 1) {
-        cursorY += 92;
-        colIndex = 0;
+  // ---- detail grid (Department / Contact / HOD Name / Time Slot) ----
+  if (rows.length) {
+    let gy = photoY + PHOTO_SIZE + 14;
+    const colW = (CARD_W - BODY_PAD_X * 2 - 8) / 2;
+    for (const row of rows) {
+      if (row.full && row.item) {
+        drawDetail(row.item, BODY_PAD_X, gy, CARD_W - BODY_PAD_X * 2);
+      } else {
+        row.cells.forEach((cell, i) => {
+          if (!cell) return;
+          const cx = BODY_PAD_X + i * (colW + 8);
+          drawDetail(cell, cx, gy, colW);
+        });
       }
-      detailBlock(row.label, row.value, 60, cursorY, W - 120);
-      cursorY += 92;
-    } else {
-      const x = colIndex === 0 ? 60 : 60 + colW + 40;
-      detailBlock(row.label, row.value, x, cursorY, colW);
-      colIndex += 1;
-      if (colIndex === 2) {
-        cursorY += 92;
-        colIndex = 0;
-      }
+      gy += ROW_H + ROW_GAP;
     }
   }
+
+  ctx.restore(); // outer clip
+
+  // ---- 1px card border (matches: border: "1px solid #E2E8F0") ----
+  ctx.strokeStyle = "#E2E8F0";
+  ctx.lineWidth = 1;
+  roundRectPath(ctx, 0.5, 0.5, CARD_W - 1, CARD_H - 1, RADIUS);
+  ctx.stroke();
 
   try {
     return canvas.toDataURL("image/png");
