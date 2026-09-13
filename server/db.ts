@@ -1,7 +1,7 @@
 import pg from "pg";
+import { newDb } from "pg-mem";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { createRequire } from "module";
 import type {
   Festival,
   Department,
@@ -12,7 +12,7 @@ import type {
   HODUser,
 } from "./types.ts";
 
-const require = createRequire(import.meta.url);
+
 const { Pool } = pg;
 
 let pool: pg.Pool;
@@ -36,7 +36,7 @@ export function getPool(): pg.Pool {
       "[Database] Notice: DATABASE_URL not set. Initializing in-memory PostgreSQL engine (pg-mem)."
     );
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { newDb } = require("pg-mem");
+  
     const memDb = newDb();
     const memAdapter = memDb.adapters.createPg();
     pool = new memAdapter.Pool();
